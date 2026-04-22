@@ -1,0 +1,92 @@
+{
+  "lastUpdated": "2026-04-21",
+  "_comment": "Prompt-caching pricing follows Anthropic's formula: cache_write_5m = input * 1.25, cache_write_1h = input * 2, cache_read = input * 0.1. See https://www.anthropic.com/pricing and https://docs.claude.com/en/docs/build-with-claude/prompt-caching.",
+  "aliases": {
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-7",
+    "haiku": "claude-haiku-4-5-20251001"
+  },
+  "models": {
+    "claude-opus-4-7": {
+      "standard": {
+        "input": 15,
+        "output": 75,
+        "cache_read": 1.5,
+        "cache_creation_5m": 18.75,
+        "cache_creation_1h": 30
+      },
+      "priority": {
+        "input": 15,
+        "output": 75,
+        "cache_read": 1.5,
+        "cache_creation_5m": 18.75,
+        "cache_creation_1h": 30
+      }
+    },
+    "claude-opus-4-6": {
+      "standard": {
+        "input": 15,
+        "output": 75,
+        "cache_read": 1.5,
+        "cache_creation_5m": 18.75,
+        "cache_creation_1h": 30
+      },
+      "priority": {
+        "input": 15,
+        "output": 75,
+        "cache_read": 1.5,
+        "cache_creation_5m": 18.75,
+        "cache_creation_1h": 30
+      }
+    },
+    "claude-sonnet-4-6": {
+      "standard": {
+        "input": 3,
+        "output": 15,
+        "cache_read": 0.3,
+        "cache_creation_5m": 3.75,
+        "cache_creation_1h": 6
+      },
+      "priority": {
+        "input": 3,
+        "output": 15,
+        "cache_read": 0.3,
+        "cache_creation_5m": 3.75,
+        "cache_creation_1h": 6
+      }
+    },
+    "claude-sonnet-4-5": {
+      "standard": {
+        "input": 3,
+        "output": 15,
+        "cache_read": 0.3,
+        "cache_creation_5m": 3.75,
+        "cache_creation_1h": 6
+      },
+      "priority": {
+        "input": 3,
+        "output": 15,
+        "cache_read": 0.3,
+        "cache_creation_5m": 3.75,
+        "cache_creation_1h": 6
+      }
+    },
+    "claude-haiku-4-5-20251001": {
+      "standard": {
+        "input": 1,
+        "output": 5,
+        "cache_read": 0.1,
+        "cache_creation_5m": 1.25,
+        "cache_creation_1h": 2
+      },
+      "priority": {
+        "input": 1,
+        "output": 5,
+        "cache_read": 0.1,
+        "cache_creation_5m": 1.25,
+        "cache_creation_1h": 2
+      }
+    }
+  },
+  "fallbackModel": "claude-opus-4-7"
+}

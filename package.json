@@ -1,0 +1,153 @@
+{
+  "name": "claude-usage-cost",
+  "displayName": "Claude Usage Cost",
+  "description": "Claude rate-limit usage + equivalent API cost indicator in the VS Code status bar. Shows S：82% · 1h 12m · $0.00 format.",
+  "version": "1.0.0",
+  "publisher": "local-dev",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-usage-cost.refresh",
+        "title": "Claude Usage: Refresh Rate Limit"
+      },
+      {
+        "command": "claude-usage-cost.switchDisplayMode",
+        "title": "Claude Usage: Switch Display Mode (Session / Weekly / Both)"
+      },
+      {
+        "command": "claude-usage-cost.setDisplayMode",
+        "title": "Claude Usage: Set Display Mode..."
+      },
+      {
+        "command": "claude-usage-cost.showLogs",
+        "title": "Claude Usage: Show Logs"
+      },
+      {
+        "command": "claude-usage-cost.showWeeklyCostPanel",
+        "title": "Claude Usage: Show Weekly Cost"
+      },
+      {
+        "command": "claude-usage-cost.statusBarClick",
+        "title": "Claude Usage: (internal) Status bar click"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "claude-usage-cost.statusBarClick",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Usage Cost",
+      "properties": {
+        "claudeUsageCost.displayMode": {
+          "type": "string",
+          "enum": ["session", "weekly", "both"],
+          "enumDescriptions": [
+            "Show session (5-hour) window only",
+            "Show weekly (7-day) window only",
+            "Show both session and weekly windows"
+          ],
+          "default": "session",
+          "description": "Display mode for the Claude Usage Cost status bar item."
+        },
+        "claudeUsageCost.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 60,
+          "minimum": 30,
+          "description": "Polling interval (seconds) for refreshing Claude rate-limit data. Default 60s, minimum 30s. Random jitter up to 20% of the interval is added each tick. Changes take effect immediately."
+        },
+        "claudeUsageCost.cost.display": {
+          "type": "string",
+          "enum": ["today", "off"],
+          "default": "today",
+          "description": "Display cost in status bar: 'today' shows today's total cost in local timezone, 'off' hides cost entirely."
+        },
+        "claudeUsageCost.cost.localRefreshSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 5,
+          "maximum": 60,
+          "description": "Interval in seconds to scan local jsonl usage logs for cost updates. Low-overhead local I/O, does not trigger network requests."
+        },
+        "claudeUsageCost.cost.pricing.remoteUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Optional HTTPS URL to fetch pricing table updates. Leave empty to use bundled pricing only. When set, the URL is fetched every 24h and cached locally. Query strings are stripped from logs to avoid leaking tokens."
+        },
+        "claudeUsageCost.weeklyCostPanel.days": {
+          "type": "string",
+          "enum": ["7", "14", "30", "60", "90", "all"],
+          "default": "7",
+          "description": "Number of recent days to show in the 'Show Weekly Cost' panel. Select 'all' to include every day with recorded usage, grouped by month (one table per month)."
+        },
+        "claudeUsageCost.thresholds.warning": {
+          "type": "number",
+          "default": 80,
+          "minimum": 1,
+          "maximum": 99,
+          "description": "Utilization percentage (0-100) at which the status bar turns warning color (yellow). Default: 80."
+        },
+        "claudeUsageCost.thresholds.error": {
+          "type": "number",
+          "default": 95,
+          "minimum": 2,
+          "maximum": 100,
+          "description": "Utilization percentage (0-100) at which the status bar turns error color (red). Default: 95. Should be greater than thresholds.warning; if not, the extension falls back to defaults."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src tests --ext .ts",
+    "test": "vitest run",
+    "package": "vsce package",
+    "vscode:prepublish": "node esbuild.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.20.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.3.0"
+  },
+  "eslintConfig": {
+    "root": true,
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module"
+    },
+    "plugins": ["@typescript-eslint"],
+    "extends": ["plugin:@typescript-eslint/recommended"],
+    "rules": {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          "vars": "all",
+          "args": "none",
+          "ignoreRestSiblings": true
+        }
+      ],
+      "@typescript-eslint/explicit-function-return-type": "off",
+      "@typescript-eslint/no-explicit-any": "warn"
+    },
+    "ignorePatterns": ["dist/", "out/", "node_modules/"]
+  }
+}

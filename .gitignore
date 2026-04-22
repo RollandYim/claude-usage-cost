@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+*.tsbuildinfo
+
+# Test / coverage artifacts
+coverage/
+.nyc_output/
+.vscode-test/
+
+# Packaged VSIX
+*.vsix
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.idea/
+.vscode/
+.cursor/
+.claude/
+
+# Local workflow artifacts
+openspec/
+tmp/
+.cache/

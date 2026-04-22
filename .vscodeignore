@@ -1,0 +1,15 @@
+src/
+node_modules/
+*.ts
+!*.d.ts
+tsconfig.json
+openspec/
+tests/
+.vscode/
+.git/
+.claude/
+.cursor/
+esbuild.js
+vitest.config.ts
+package-lock.json
+.gitignore
