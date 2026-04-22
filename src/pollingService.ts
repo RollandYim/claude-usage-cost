@@ -251,7 +251,13 @@ export class PollingService implements vscode.Disposable {
     this._clearTimer();
     this._timer = setTimeout(() => {
       this._timer = null;
-      this._scheduleNext();
+      this.logger.appendLine('[PollingService] pause elapsed — issuing post-pause refresh');
+      // The pause itself is the full cooldown window — do NOT insert another
+      // `intervalMs + jitter` wait here. Fire `refreshNow()` directly; its
+      // `.finally` re-enters `_scheduleNext()` to drive the next normal tick.
+      this.refreshNow()
+        .catch((err: unknown) => this.logger.appendLine(`Polling error (after pause): ${err}`))
+        .finally(() => this._scheduleNext());
     }, ms);
   }
 

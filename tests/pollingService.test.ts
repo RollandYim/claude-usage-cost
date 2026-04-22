@@ -152,14 +152,12 @@ describe('PollingService', () => {
     await vi.advanceTimersByTimeAsync(60_000 + RETRY_AFTER_BUFFER_MS - 1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
-    // Cross past the resume boundary + one full interval+jitterCap window: a
-    // second fetch MUST have fired. We use the *actual* jitter cap
-    // (min(POLL_JITTER_MS, intervalMs × POLL_JITTER_FRACTION)) so the window
-    // only fits exactly one post-resume fetch — if we see 3+ here either the
-    // pause schedule was duplicated (regression of the `_scheduleNext`
-    // `_timer`-guard) or the jitter cap regressed upward.
-    const jitterCapMs = Math.min(POLL_JITTER_MS, Math.floor(intervalMs * POLL_JITTER_FRACTION));
-    await vi.advanceTimersByTimeAsync(1 + intervalMs + jitterCapMs);
+    // Cross past the resume boundary by 1ms: the second fetch MUST fire
+    // immediately (pause is its own cooldown — no extra intervalMs stacking).
+    // Regression guard: if someone re-introduces `_scheduleNext()` inside
+    // _pauseFor, this assertion will fail because the next fetch would be
+    // delayed by intervalMs + jitter instead.
+    await vi.advanceTimersByTimeAsync(2);
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     svc.dispose();
@@ -179,6 +177,126 @@ describe('PollingService', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(setRemoteStatus).toHaveBeenCalledWith('offline' satisfies RemoteUsageStatus);
+
+    svc.dispose();
+  });
+
+  it('429 without Retry-After → pause = intervalMs + RETRY_AFTER_BUFFER_MS, does not stack intervalMs after resume', async () => {
+    const { store } = makeStore();
+    const logger = makeLogger();
+    fetchMock
+      .mockResolvedValueOnce(makeResponse({ status: 429 }))
+      .mockResolvedValueOnce(makeResponse({ status: 200, json: { five_hour: null, seven_day: null } }));
+
+    const svc = new PollingService(store, logger as never);
+    svc.setToken('t');
+    Math.random = (): number => 0;
+    svc.start();
+
+    await vi.advanceTimersByTimeAsync(intervalMs);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // No Retry-After → wait = intervalMs + RETRY_AFTER_BUFFER_MS
+    const expectedPause = intervalMs + RETRY_AFTER_BUFFER_MS;
+
+    // Just before resume: still 1 call.
+    await vi.advanceTimersByTimeAsync(expectedPause - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Cross resume boundary: second fetch MUST fire within 1ms, NOT after
+    // pause + intervalMs + jitter (the pre-fix stacking behavior).
+    await vi.advanceTimersByTimeAsync(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    svc.dispose();
+  });
+
+  it('network error pause does not stack intervalMs after resume', async () => {
+    const { store, setRemoteStatus } = makeStore();
+    const logger = makeLogger();
+    fetchMock
+      .mockRejectedValueOnce(new Error('ECONNRESET'))
+      .mockResolvedValueOnce(makeResponse({ status: 200, json: { five_hour: null, seven_day: null } }));
+
+    const svc = new PollingService(store, logger as never);
+    svc.setToken('t');
+    Math.random = (): number => 0;
+    svc.start();
+
+    await vi.advanceTimersByTimeAsync(intervalMs);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(setRemoteStatus).toHaveBeenCalledWith('offline' satisfies RemoteUsageStatus);
+
+    // Backoff pause = BACKOFF_INITIAL_MS (30_000). Just before resume: still 1 call.
+    await vi.advanceTimersByTimeAsync(30_000 - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Cross resume boundary: second fetch fires immediately.
+    await vi.advanceTimersByTimeAsync(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    svc.dispose();
+  });
+
+  it('5xx pause does not stack intervalMs after resume', async () => {
+    const { store, setRemoteStatus } = makeStore();
+    const logger = makeLogger();
+    fetchMock
+      .mockResolvedValueOnce(makeResponse({ status: 503 }))
+      .mockResolvedValueOnce(makeResponse({ status: 200, json: { five_hour: null, seven_day: null } }));
+
+    const svc = new PollingService(store, logger as never);
+    svc.setToken('t');
+    Math.random = (): number => 0;
+    svc.start();
+
+    await vi.advanceTimersByTimeAsync(intervalMs);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(setRemoteStatus).toHaveBeenCalledWith('offline' satisfies RemoteUsageStatus);
+
+    // First 5xx backoff = BACKOFF_INITIAL_MS (30_000). Just before resume: still 1 call.
+    await vi.advanceTimersByTimeAsync(30_000 - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Cross resume boundary: second fetch fires immediately (pause is its own
+    // cooldown — no extra intervalMs + jitter wait). Regression guard for
+    // _pauseFor using _scheduleNext in its setTimeout callback.
+    await vi.advanceTimersByTimeAsync(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    svc.dispose();
+  });
+
+  it('consecutive 5xx backoff grows (factor) and each pause still does not stack intervalMs', async () => {
+    const { store } = makeStore();
+    const logger = makeLogger();
+    fetchMock
+      .mockResolvedValueOnce(makeResponse({ status: 503 }))
+      .mockResolvedValueOnce(makeResponse({ status: 503 }))
+      .mockResolvedValueOnce(makeResponse({ status: 200, json: { five_hour: null, seven_day: null } }));
+
+    const svc = new PollingService(store, logger as never);
+    svc.setToken('t');
+    Math.random = (): number => 0;
+    svc.start();
+
+    // 1st tick → 1st 503. Backoff pause = BACKOFF_INITIAL_MS = 30_000.
+    await vi.advanceTimersByTimeAsync(intervalMs);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Pause ends, 2nd request fires → 2nd 503. New backoff pause =
+    // 30_000 * BACKOFF_FACTOR = 45_000 (BACKOFF_FACTOR = 1.5 per config.ts).
+    await vi.advanceTimersByTimeAsync(30_000 + 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Advance exactly to just before 2nd pause expiry — still 2 calls.
+    await vi.advanceTimersByTimeAsync(45_000 - 2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Cross 2nd resume boundary: 3rd fetch (the 200) fires immediately —
+    // the grown backoff pause is still its own cooldown, no intervalMs stacking.
+    await vi.advanceTimersByTimeAsync(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
 
     svc.dispose();
   });
